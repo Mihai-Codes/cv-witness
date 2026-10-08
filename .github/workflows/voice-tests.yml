@@ -2,20 +2,9 @@ name: Test private voice corpus
 
 on:
   pull_request:
-    paths:
-      - "scripts/voice_corpus.py"
-      - "tests/**"
-      - "SKILL.md"
-      - ".gitignore"
-      - ".github/workflows/voice-tests.yml"
+    branches: [main]
   push:
-    branches: [main, feat/voice-corpus]
-    paths:
-      - "scripts/voice_corpus.py"
-      - "tests/**"
-      - "SKILL.md"
-      - ".gitignore"
-      - ".github/workflows/voice-tests.yml"
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -45,3 +34,18 @@ jobs:
         run: |
           git diff --exit-code
           test -z "$(git ls-files --others --exclude-standard)"
+
+  voice-test-gate:
+    name: Voice corpus tests
+    runs-on: ubuntu-latest
+    needs: [synthetic-tests]
+    if: ${{ always() }}
+    steps:
+      - name: Require every synthetic test job to pass
+        env:
+          MATRIX_RESULT: ${{ needs.synthetic-tests.result }}
+        run: |
+          if [ "$MATRIX_RESULT" != "success" ]; then
+            printf 'Synthetic test matrix did not succeed (%s).\n' "$MATRIX_RESULT"
+            exit 1
+          fi
