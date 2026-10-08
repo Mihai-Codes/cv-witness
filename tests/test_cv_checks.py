@@ -190,6 +190,28 @@ class RendererContractTests(unittest.TestCase):
             with self.assertRaises(checks.CheckError):
                 render_cv.browser_path()
 
+    def test_completed_pdf_does_not_wait_for_a_lingering_browser_process(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary).resolve() / "candidate.pdf"
+            code = "import pathlib,sys,time; pathlib.Path(sys.argv[1]).write_bytes(b'%PDF-synthetic\\n%%EOF\\n'); time.sleep(30)"
+            render_cv.run_browser([sys.executable, "-c", code, str(output)], output, timeout=3)
+            self.assertIsNotNone(render_cv.complete_pdf(output))
+
+    def test_incomplete_pdf_is_not_accepted_when_process_lingers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary).resolve() / "candidate.pdf"
+            code = "import pathlib,sys,time; pathlib.Path(sys.argv[1]).write_bytes(b'%PDF-incomplete'); time.sleep(30)"
+            with self.assertRaises(checks.CheckError):
+                render_cv.run_browser([sys.executable, "-c", code, str(output)], output, timeout=.2)
+            self.assertIsNone(render_cv.complete_pdf(output))
+
+    def test_failed_browser_with_a_pdf_still_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary).resolve() / "candidate.pdf"
+            code = "import pathlib,sys; pathlib.Path(sys.argv[1]).write_bytes(b'%PDF-synthetic\\n%%EOF\\n'); sys.exit(1)"
+            with self.assertRaises(checks.CheckError):
+                render_cv.run_browser([sys.executable, "-c", code, str(output)], output, timeout=3)
+
 
 if __name__ == "__main__":
     unittest.main()

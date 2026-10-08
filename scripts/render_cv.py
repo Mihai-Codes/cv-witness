@@ -7,9 +7,11 @@ import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 
 if __package__:
     from .cv_checks import CheckError, CheckFailure, MARKER, MAX_BYTES, validate_pdf
@@ -79,6 +81,79 @@ def validate_source(source, paper):
     return page_css(source, paper)
 
 
+def complete_pdf(path):
+    """A write-completion signal only; Poppler still validates the candidate."""
+    try:
+        size = path.stat().st_size
+        if not 8 < size <= MAX_BYTES:
+            return None
+        with path.open("rb") as document:
+            if document.read(5) != b"%PDF-":
+                return None
+            document.seek(max(0, size - 1024))
+            if not document.read().rstrip().endswith(b"%%EOF"):
+                return None
+        return size
+    except OSError:
+        return None
+
+
+def browser_command(browser, source, pdf, profile, no_sandbox=False):
+    command = [browser, "--headless", "--disable-gpu", "--no-pdf-header-footer",
+               "--disable-background-networking", "--disable-extensions",
+               "--no-first-run", "--no-default-browser-check",
+               "--host-resolver-rules=MAP * ~NOTFOUND",
+               "--user-data-dir=" + str(profile), "--print-to-pdf=" + str(pdf)]
+    if no_sandbox:
+        command.append("--no-sandbox")
+    return command + [source.as_uri()]
+
+
+def run_browser(command, pdf, timeout=90, stderr=subprocess.DEVNULL):
+    """Wait for a stable candidate, not an indefinitely lingering browser UI."""
+    try:
+        with subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=stderr,
+                              start_new_session=True) as process:
+            deadline = time.monotonic() + timeout
+            previous_size = None
+            stable_since = None
+            try:
+                while time.monotonic() < deadline:
+                    size = complete_pdf(pdf)
+                    if size is not None:
+                        if size != previous_size:
+                            stable_since = time.monotonic()
+                        elif time.monotonic() - stable_since >= .5:
+                            if process.poll() not in (None, 0):
+                                raise CheckError("Browser exited unsuccessfully; no output was published.")
+                            return
+                    else:
+                        stable_since = None
+                    previous_size = size
+                    if process.poll() is not None and size is None:
+                        raise CheckError("Browser produced no completed PDF; no output was published.")
+                    time.sleep(.1)
+                raise CheckError("Browser PDF production timed out; no output was published.")
+            finally:
+                # A separate session and fresh profile isolate this invocation.
+                # Never search for or stop the user's shared browser.
+                if process.poll() is None:
+                    try:
+                        os.killpg(process.pid, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        process.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        try:
+                            os.killpg(process.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                        process.wait(timeout=2)
+    except (OSError, subprocess.SubprocessError) as error:
+        raise CheckError("Browser rendering failed; no output was published.") from error
+
+
 def render_html(source, output, paper="a4", max_pages=1, expected_text=(),
                 posting=None, overlap_policy="strict", explicit_browser=None,
                 replace=False, no_sandbox=False):
@@ -103,20 +178,8 @@ def render_html(source, output, paper="a4", max_pages=1, expected_text=(),
         html_path = directory / "source.html"
         pdf_path = directory / "candidate.pdf"
         html_path.write_text(source, encoding="utf-8")
-        command = [browser, "--headless", "--disable-gpu", "--no-pdf-header-footer",
-                   "--disable-background-networking", "--disable-extensions",
-                   "--no-first-run", "--no-default-browser-check",
-                   "--host-resolver-rules=MAP * ~NOTFOUND",
-                   "--user-data-dir=" + str(directory / "browser-profile"),
-                   "--print-to-pdf=" + str(pdf_path)]
-        if no_sandbox:
-            command.append("--no-sandbox")
-        command.append(html_path.as_uri())
-        try:
-            subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                           check=True, timeout=90)
-        except (OSError, subprocess.SubprocessError) as error:
-            raise CheckError("Browser rendering failed; no output was published.") from error
+        command = browser_command(browser, html_path, pdf_path, directory / "browser-profile", no_sandbox)
+        run_browser(command, pdf_path)
         report = validate_pdf(pdf_path, paper, max_pages, expected_text, posting,
                               overlap_policy, source_html=source)
         if not report["passed"]:
