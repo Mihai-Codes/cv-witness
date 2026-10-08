@@ -1,5 +1,8 @@
 {
   "name": "cv-witness",
+  "metadata": {
+    "description": "One skill for drafting and reviewing a CV from verified experience."
+  },
   "owner": {
     "name": "Mihai-Alexandru Chindriș",
     "url": "https://mihaichindris.me"
