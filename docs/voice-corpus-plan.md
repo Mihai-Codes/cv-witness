@@ -28,7 +28,9 @@ TL;DR: Import selected originals locally, retain their provenance, and produce a
 
 Use standard-library unittest with synthetic text, Portable Text, memory records and chat exports. Cover published/draft/version filtering, multi-author sources, quoted/code blocks, Unicode, duplicate/revised records, archive traversal, malformed exports, atomic imports, storage restrictions, empty/small/mixed-language corpora, permission errors, excerpt opt-in, deletion, and end-to-end CLI operation.
 
-Run on Python 3.11 and 3.14 locally, then add a narrowly scoped public test workflow using only synthetic fixtures. Independently review the implementation and fix verified defects before closing #3.
+Verified: 79 synthetic tests pass locally on Python 3.11 and 3.14. Both push and PR workflows passed all four Linux/macOS runtime combinations at technical commit `16f3b94`. The clean-checkout test exercises import, private profile generation, comparison and deletion from another working directory.
+
+Review findings were fixed with regressions: source/profile overwrite, cross-author replacement, undated/older revisions, generated Sanity content, draft/truncated messages, malformed quotation markup, invalid Unicode, archive expansion including PAX metadata, private permissions and tracked/unignored storage. No real writing or account data was used.
 
 ## After the technical bar passes
 
