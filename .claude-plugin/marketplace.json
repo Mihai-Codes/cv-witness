@@ -1,0 +1,17 @@
+{
+  "name": "cv-witness",
+  "owner": {
+    "name": "Mihai-Alexandru Chindriș",
+    "url": "https://mihaichindris.me"
+  },
+  "plugins": [
+    {
+      "name": "cv-witness",
+      "source": "./",
+      "description": "Tailored, ATS-safe one-page CVs from verified experience - nothing invented, nothing mirrored from the job description.",
+      "version": "0.4.0",
+      "category": "productivity",
+      "keywords": ["resume", "cv", "ats", "job-applications"]
+    }
+  ]
+}
