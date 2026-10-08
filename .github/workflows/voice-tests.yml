@@ -14,6 +14,7 @@ jobs:
   synthetic-tests:
     name: Synthetic workflows · ${{ matrix.os }} · Python ${{ matrix.python }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -47,8 +48,12 @@ jobs:
           command -v pdfinfo
           command -v pdftotext
           command -v pdftoppm
+      - name: Bounded fictional browser smoke check
+        timeout-minutes: 2
+        run: python -u scripts/ci_pdf_smoke.py
       - name: Test fictional exports, strict failures and private corpus handling
-        run: python -m unittest discover -s tests -v
+        timeout-minutes: 6
+        run: python -u -m unittest discover -s tests -v
       - name: Check the distributable commands
         run: |
           python scripts/voice_corpus.py --help
