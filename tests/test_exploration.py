@@ -140,6 +140,20 @@ class ExplorationTests(unittest.TestCase):
         self.assertNotIn('<script src=', source)
         self.assertNotIn('href="https://', source)
 
+    def test_exploration_pages_declare_valid_favicons(self):
+        for name in ("index.html", "workflow.html", "codegraph.html"):
+            with self.subTest(page=name):
+                source = (ROOT / "assets/explore" / name).read_text(encoding="utf-8")
+                icon = re.search(r'<link\b[^>]*rel="icon"[^>]*href="([^"]+)"', source)
+                self.assertIsNotNone(icon, "Exploration pages must not request a missing root favicon.")
+                if name == "index.html":
+                    self.assertTrue((ROOT / "assets/explore" / icon[1]).is_file())
+                else:
+                    from urllib.parse import unquote
+                    self.assertTrue(icon[1].startswith("data:image/svg+xml,"))
+                    self.assertEqual(unquote(icon[1].split(",", 1)[1]),
+                                     (ROOT / "assets/mark.svg").read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()
