@@ -1,34 +1,113 @@
-# Repeatable CV template contract
+# Repeatable CV templates
 
 Date: 2026-10-09
 POC: Mihai-Alexandru Chindriș
-TL;DR: One structured input, one print layout and four section-order presets. Every selected record is rendered and checked; page limits fail visibly instead of discarding content.
+TL;DR: Supply approved structured wording, select a career lane and paper size, and export through one checked layout. Roles repeat without fixed slots or manual CSS adjustments.
 
-## Input
+## Build a CV
 
-The version-1 JSON document supplies a `header` with a name and optional contact details, plus optional `summary`, `skills`, `experience`, `projects`, `education`, `certifications`, `languages` and `publications`.
+Python 3.11+, a Chromium-family browser and Poppler are required. Start with the [fictional structured example](../examples/structured-cv.json); keep real inputs outside public examples and assets.
 
-Experience is a list of employers with a list of roles. Each role has a title, dates and a list of bullets. Empty optional sections produce no heading. Unknown fields or wrong types fail, rather than disappearing during rendering. The document contains approved wording, not a request to invent qualifications or rewrite a job posting.
+```sh
+python3 scripts/build_cv.py /absolute/path/to/approved-cv.json \
+  "$HOME/Downloads/Candidate-CV-Company-Role.pdf" \
+  --lane engineering --paper a4 --max-pages 1 \
+  --posting /absolute/path/to/selected-posting.txt
+```
 
-## Presentation
+The output is published only after the shared [delivery checks](delivery-checks.md) pass. `--posting` is optional; selecting it runs phrase review automatically. Strict overlap checks can match generic industry wording, so use `--overlap-policy review` only after deciding those matches need review rather than blocking.
 
-- Engineering: summary, skills, experience, projects, education, certifications, publications, languages.
-- Operations/Support: summary, experience, skills, certifications, projects, education, publications, languages.
-- Research: summary, education, experience, publications, projects, skills, certifications, languages.
-- Management: summary, experience, projects, skills, education, certifications, publications, languages.
+Use `--paper letter` for US Letter. The default page limit is one; a longer resume or research CV needs an explicit approved limit such as `--max-pages 3`. Excess pages fail visibly. The builder never discards roles, cuts bullets, changes claims or reduces the body font to manufacture a pass.
 
-Presets reorder complete sections only. They do not change dates, metrics, bullet text, role counts or qualifications. An explicit section-order override must include every nonempty section exactly once.
+Existing output is preserved unless `--replace` is requested. Failed rendering or checks preserve that output even with replacement enabled. Input documents are never modified.
 
-A shared HTML shell and print stylesheet use selectable text, inline metadata and a single column. A4 and Letter are explicit choices. The standard body size stays at 10.5pt. Long experience blocks may split across pages; headings and compact entries are kept together when space permits.
+## Version-1 input
 
-## Checks
+The root JSON object accepts only these fields:
 
-The structured builder rejects unresolved markers, invalid Unicode, unsafe link schemes, duplicate/unknown keys, empty required values and invalid collection types. It escapes all supplied text.
+| Field | Shape | Behavior |
+| --- | --- | --- |
+| `schema_version` | Integer `1` | Required; unsupported versions fail. |
+| `header` | Object | Required; `name` is required. Optional `role` and `contacts`. |
+| `summary` | String | Optional; an empty string omits the section. |
+| `skills` | List of objects | Each entry has `category` and `text`. |
+| `experience` | List of employers | Each has `employer`, optional `location`, and a nonempty `roles` list. |
+| `projects` | List of objects | Required `name` and nonempty `bullets`; optional `description`, `dates` and `url`. |
+| `education` | List of strings | Approved qualification/institution/date wording. |
+| `certifications` | List of strings | Approved certification wording. |
+| `publications` | List of objects | Required `citation`, optional `url`. |
+| `languages` | List of strings | Candidate-confirmed proficiency wording. |
+| `note` | String | Optional source note; validated but not printed in the CV. |
 
-The same export checker used by the legacy template verifies page geometry, live extracted text, unresolved markers, selected-posting overlap and the complete expected-text contract. Actual rendered variants must pass for each lane and paper format. Text extraction is also checked in section order.
+Each contact has `label` and `value`, with an optional explicit HTTP(S), `mailto` or `tel` URL. Each role has `title`, `dates` and a nonempty list of bullet strings. Dates are supplied wording, not automatically inferred or checked against a career history.
 
-The default page limit is one; a longer CV needs an explicit approved limit. No local test can promise 100% parsing across ATS platforms. Factual review and visual inspection are still required.
+```json
+{
+  "schema_version": 1,
+  "header": {
+    "name": "Alex Morgan",
+    "contacts": [
+      {"label": "Email", "value": "alex@example.com", "url": "mailto:alex@example.com"}
+    ]
+  },
+  "experience": [
+    {
+      "employer": "Sample Studio (fictional)",
+      "roles": [
+        {
+          "title": "Software Engineer",
+          "dates": "2024 - Present",
+          "bullets": ["Built a small reporting tool and documented its input checks."]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Add roles or employers by adding records, not numbered placeholders. Collections support up to 200 entries each; contacts are limited to 12. Text values have an 8,000-character limit and input files a 16 MiB limit. A very large CV may exceed the approved page limit even though its input is valid.
+
+Empty optional lists produce no heading. Provide at least one nonempty section. Unknown fields, duplicate JSON keys, wrong types, empty required strings, unsafe link schemes, invalid Unicode and unresolved fill/template markers fail rather than disappearing silently. Supplied text is escaped before it enters the HTML.
+
+## Four ordering presets
+
+| `--lane` | Section order, omitting empty sections |
+| --- | --- |
+| `engineering` | Summary, Skills, Experience, Projects, Education, Certifications, Publications, Languages |
+| `operations` | Summary, Experience, Skills, Certifications, Projects, Education, Publications, Languages |
+| `research` | Summary, Education, Experience, Publications, Projects, Skills, Certifications, Languages |
+| `management` | Summary, Experience, Projects, Skills, Education, Certifications, Publications, Languages |
+
+Operations includes support roles. These are presentation defaults, not rules about what experience someone should claim. The same supplied content appears in every preset.
+
+`--section-order` accepts comma-separated section keys. It must include every nonempty section exactly once; it cannot silently hide content. For an education-first example:
+
+```sh
+python3 scripts/build_cv.py approved.json output.pdf \
+  --lane research --paper letter --max-pages 3 \
+  --section-order education,experience,publications,skills
+```
+
+That command is valid only when those four sections are the complete nonempty set in the input. Add other nonempty keys explicitly or use the preset.
+
+## Layout and verification
+
+`templates/structured.html` supplies one single-column print layout. Body copy stays at 10.5pt, metadata remains inline, and contact links have visible text. Long experience blocks can split across pages; heading break controls reduce stranded headings without forcing an entire long section onto one page.
+
+The builder supplies an expected-text contract derived from the emitted wording. The shared checker verifies its presence after export, including wrapped URLs, plus page geometry, live text, markers and selected-posting overlap. Tests also inspect section order and long-role content. Presence checks cannot establish employer association, complete reading order or visual quality on every possible document; inspect every rendered page and verify the facts.
+
+No local export can promise “100% ATS parsability” across hiring platforms. These checks reduce formatting risk; they do not certify parsing, ranking, originality or an interview.
+
+All eight [fictional lane/paper samples](https://mihai-codes.github.io/cv-witness/assets/explore/) demonstrate the same approved example. Reproduce them with:
+
+```sh
+python3 scripts/render_template_gallery.py
+```
+
+The gallery helper always reads the tracked fictional fixture, never an arbitrary personal CV. Use `--output-dir` to reproduce outside the published asset tree.
 
 ## Compatibility
 
-`template.html` remains the legacy manual layout. `render.sh` remains the checked HTML-to-PDF entrypoint. The new structured command consumes the shared renderer rather than copying it into each lane.
+`template.html` remains the legacy manual layout. `render.sh` remains the checked HTML-to-PDF entrypoint. The structured builder delegates to that same Python renderer and validator; there are no four copied renderers or style systems.
+
+Candidate approval, independent factual review and private-source handling remain defined by `SKILL.md`.
