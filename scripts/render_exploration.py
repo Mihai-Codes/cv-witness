@@ -325,14 +325,14 @@ def main(argv=None):
         if errors or warnings or enrichment_warnings:
             raise ValueError("Source-map validation failed: " + "; ".join(errors + warnings + enrichment_warnings))
         graph = public_metadata(renderer.merge(graph, clean), revision)
-        result = adapt_source_map(renderer.render_html(graph, "cv-witness"))
+        result = "\n".join(line.rstrip() for line in adapt_source_map(renderer.render_html(graph, "cv-witness")).splitlines()) + "\n"
         if "/Users/" in result or "/Volumes/" in result:
             raise ValueError("Local build metadata remains in the public source map.")
         renderer.deliver(result, str(staged / "codegraph.html"))
         graph_input = temporary / "workflow.json"
         graph_input.write_text(json.dumps(WORKFLOW), encoding="utf-8")
         subprocess.run([sys.executable, str(glowmotion / "scripts/layout.py"), str(graph_input), "--render", str(staged / "workflow.html")], check=True)
-        workflow = adapt_workflow((staged / "workflow.html").read_text())
+        workflow = "\n".join(line.rstrip() for line in adapt_workflow((staged / "workflow.html").read_text()).splitlines()) + "\n"
         (staged / "workflow.html").write_text(workflow, encoding="utf-8")
         subprocess.run([sys.executable, str(glowmotion / "scripts/check_diagram.py"), str(staged / "workflow.html")], check=True)
         (staged / "workflow-preview.svg").write_text(workflow_preview(workflow), encoding="utf-8")
