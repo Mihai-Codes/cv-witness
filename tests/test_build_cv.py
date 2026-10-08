@@ -205,6 +205,23 @@ class LanePDFTests(unittest.TestCase):
         self.assertNotIn("Alex Morgan", result.stdout)
         self.assertTrue(output.exists())
 
+    def test_technical_wording_is_data_not_a_css_resource(self):
+        data = fixture()
+        data["summary"] = "I documented url() examples, @import behavior and a src= attribute for other developers."
+        source, expected, _ = builder.build_html(data)
+        report = render_cv.render_html(source, self.root / "wording.pdf", max_pages=2,
+                                       expected_text=expected, **self.options)
+        self.assertTrue(report["passed"])
+        self.assertIn(checks.normalized_text(data["summary"]), checks.normalized_text(checks.read_text(self.root / "wording.pdf")))
+
+    def test_long_url_wraps_without_losing_its_expected_text(self):
+        data = fixture()
+        data["projects"][0]["url"] = "https://example.com/" + "long-source-identifier" * 12
+        source, expected, _ = builder.build_html(data)
+        report = render_cv.render_html(source, self.root / "long-url.pdf", max_pages=3,
+                                       expected_text=expected, **self.options)
+        self.assertTrue(report["passed"])
+
 
 if __name__ == "__main__":
     unittest.main()
