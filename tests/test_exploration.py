@@ -244,6 +244,32 @@ class ExplorationTests(unittest.TestCase):
             self.assertEqual(preview.read_text(), "Keep previous image.")
             self.assertEqual(list(output.glob(".workflow-preview-*")), [])
 
+    def test_preview_only_rejects_symlinked_directories_before_reading_source(self):
+        for linked_part in ("assets", "explore"):
+            with self.subTest(linked_part=linked_part), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                outside = root / "outside"
+                outside.mkdir()
+                (outside / "workflow.html").write_text("Synthetic source must not be read.")
+                previous = outside / "workflow-preview.svg"
+                previous.write_text("Preserve outside preview.")
+                if linked_part == "assets":
+                    clone = root / "clone"
+                    clone.mkdir()
+                    (clone / "assets").symlink_to(outside, target_is_directory=True)
+                else:
+                    clone = root / "clone"
+                    (clone / "assets").mkdir(parents=True)
+                    (clone / "assets/explore").symlink_to(outside, target_is_directory=True)
+                with patch.object(diagrams, "ROOT", clone), \
+                        patch.object(Path, "read_text", side_effect=AssertionError("Source read preceded path validation")), \
+                        patch.object(diagrams, "workflow_preview") as convert:
+                    with self.assertRaises(ValueError):
+                        diagrams.main(["--preview-only"])
+                    convert.assert_not_called()
+                self.assertEqual(previous.read_text(), "Preserve outside preview.")
+                self.assertEqual(list(outside.glob(".workflow-preview-*")), [])
+
 
 if __name__ == "__main__":
     unittest.main()

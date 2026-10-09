@@ -247,13 +247,17 @@ def public_snapshot(root, destination, revision="HEAD"):
             target.write_bytes(content.extractfile(member).read())
 
 
+def validate_output_directory(output):
+    if any(path.is_symlink() for path in (output,) + tuple(output.parents)):
+        raise ValueError("Diagram output must not follow symlinked directories.")
+
+
 def publish_artifacts(staged, output):
     """Publish only a complete validated set; roll back ordinary I/O failures."""
     names = ("codegraph.html", "workflow.html", "workflow-preview.svg")
     if any(not (staged / name).is_file() or not (staged / name).stat().st_size for name in names):
         raise ValueError("The validated diagram set is incomplete.")
-    if any(path.is_symlink() for path in (output,) + tuple(output.parents)):
-        raise ValueError("Diagram output must not follow symlinked directories.")
+    validate_output_directory(output)
     output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".explore-publish-", dir=output) as temporary:
         temporary = Path(temporary)
@@ -347,6 +351,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.preview_only:
         output = ROOT / "assets/explore"
+        validate_output_directory(output)
         preview = workflow_preview((output / "workflow.html").read_text(encoding="utf-8"))
         with tempfile.TemporaryDirectory(prefix=".workflow-preview-", dir=output) as temporary:
             staged = Path(temporary) / "workflow-preview.svg"
