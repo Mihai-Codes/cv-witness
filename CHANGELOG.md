@@ -16,6 +16,7 @@ public; their entries are consolidated summaries, not commit-for-commit notes.
 ### Fixed
 
 - The README workflow preview now has an opaque light background and explicit dark labels, independent of the surrounding theme. Added standalone preview regeneration and rendering regressions.
+- The CI browser smoke check uses the renderer's bounded startup deadline instead of a shorter cold-start limit; PDF validation remains required.
 
 ## [0.6.0] - 2026-10-09
 
